@@ -1,54 +1,78 @@
-(defun instruction-mov (operands)
+(defun caddr (x)
+ "caddr lol" (cadr (cdr x)))
+
+(defun get-function (str-id operands func-list)
+  "Finds an instruction function given its identifier string"
+  (let* ( (instruction (car func-list))
+          (instruction-str (car instruction))
+          (instruction-function (cadr instruction))
+          (instruction-pattern (caddr instruction)))
+    (cond
+      ((equal func-list '()) nil)
+      ((and (equal str-id instruction-str) (matches? operands instruction-pattern)) instruction-function)
+      (t (get-function str-id operands (cdr func-list))))))
+
+(defun instruction-mov (operands memory ip)
   "Moves from memory to memory."
-  (setf (nth (car operands) memory) (nth (cadr operands) memory)))
+  (setf (nth (car operands) memory) (nth (cadr operands) memory))
+  (+ ip 1))
 
-(defun instruction-movi (operands)
+(defun instruction-movi (operands memory ip)
   "Move immediate value to memory."
-  (setf (nth (car operands) memory) (cadr operands)))
+  (setf (nth (car operands) memory) (cadr operands))
+  (+ ip 1))
 
-(defun instruction-add (operands)
+(defun instruction-add (operands memory ip)
   "Adds memory to memory, stores in memory."
-  (setf (nth (car operands) memory) (+ (nth (cadr operands) memory) (nth (car (cdr operands)) memory))))
+  (setf (nth (car operands) memory) (+ (nth (cadr operands) memory) (nth (car (cdr operands)) memory)))
+  (+ ip 1))
 
-(defun instruction-addi (operands)
+(defun instruction-addi (operands memory ip)
   "Adds memory to immediate value, stores in memory."
-  (setf (nth (car operands) memory) (+ (nth (cadr operands) memory) (car (cdr operands)))))
+  (setf (nth (car operands) memory) (+ (nth (cadr operands) memory) (car (cdr operands))))
+  (+ ip 1))
 
-(defun instruction-mul (operands)
+(defun instruction-mul (operands memory ip)
   "Multiplies memory with memory, stores in memory."
-  (setf (nth (car operands) memory) (* (nth (cadr operands) memory) (nth (car (cdr operands)) memory))))
+  (setf (nth (car operands) memory) (* (nth (cadr operands) memory) (nth (car (cdr operands)) memory)))
+  (+ ip 1))
 
-(defun instruction-muli (operands)
+(defun instruction-muli (operands memory ip)
   "Multiples memory with immediate value, stores in memory."
-  (setf (nth (car operands) memory) (* (nth (cadr operands) memory) (nth (car (cdr operands))))))
+  (setf (nth (car operands) memory) (* (nth (cadr operands) memory) (nth (car (cdr operands)))))
+  (+ ip 1))
 
-(defun instruction-div (operands)
+(defun instruction-div (operands memory ip)
   "Divides memory with memory, stores in memory."
-  (setf (nth (car operands) memory) (/ (nth (cadr operands) memory) (nth (car (cdr operands) memory)))))
+  (setf (nth (car operands) memory) (/ (nth (cadr operands) memory) (nth (car (cdr operands) memory))))
+  (+ ip 1))
 
-(defun instruction-divi (operands)
+(defun instruction-divi (operands memory ip)
   "Divides memory with immediate value, stores in memory."
-  (setf (nth (car operands) memory) (/ (nth (cadr operands) memory) (nth (car (cdr operands))))))
+  (setf (nth (car operands) memory) (/ (nth (cadr operands) memory) (nth (car (cdr operands)))))
+  (+ ip 1))
 
-(defun instruction-mod (operands)
+(defun instruction-mod (operands memory ip)
   "Stores remainder of two values in memory."
-  (setf (nth (car operands) memory) (% (nth (cadr operands) memory) (nth (car (cdr operands) memory)))))
+  (setf (nth (car operands) memory) (% (nth (cadr operands) memory) (nth (car (cdr operands) memory))))
+  (+ ip 1))
 
-(defun instruction-modi (operands)
+(defun instruction-modi (operands memory ip)
   "Stores remainder of two values in memory."
-  (setf (nth (car operands) memory) (% (nth (cadr operands) memory) (car (cdr operands)))))
+  (setf (nth (car operands) memory) (% (nth (cadr operands) memory) (car (cdr operands))))
+  (+ ip 1))
 
-(defun instruction-beqz (operands)
+(defun instruction-beqz (operands memory ip)
   "Branches if equal to zero."
-  (when (= (nth (car operands) memory) 0)
-    (setf instruction-pointer (1- (cadr operands)))))
+  (cond ((= (nth (car operands) memory) 0) (cadr operands))
+         (t (+ ip 1))))
 
-(defun instruction-bneqz (operands)
+(defun instruction-bneqz (operands memory ip)
   "Branches if not equal to zero."
-  (when (not (= (nth (car operands) memory) 0))
-    (setf instruction-pointer (1- (cadr operands)))))
+  (cond ((not (= (nth (car operands) memory) 0)) (cadr operands))
+         (t (+ ip 1))))
 
-(defun instruction-display (operands)
+(defun instruction-display (operands memory ip)
   "Prints ASCII character."
   (message (car operands)))
 
@@ -57,11 +81,11 @@
   (let ((tokens '()))
     (dolist (token operands)
       (cond ((string-prefix-p "$" token)
-	     (setf tokens (append tokens (list (list 'int (string-to-number (mapconcat 'identity (cdr (split-string token "" t)) "")))))))
-	    ((string-prefix-p "!" token)
-	     (setf tokens (append tokens (list (list 'string (mapconcat 'identity (cdr (split-string token "" t)) ""))))))
-	    (t
-	     (setf tokens (append tokens (list (list 'cell (string-to-number token))))))))
+             (setf tokens (append tokens (list (list 'int (string-to-number (mapconcat 'identity (cdr (split-string token "" t)) "")))))))
+            ((string-prefix-p "!" token)
+             (setf tokens (append tokens (list (list 'string (mapconcat 'identity (cdr (split-string token "" t)) ""))))))
+            (t
+              (setf tokens (append tokens (list (list 'cell (string-to-number token))))))))
     tokens))
 
 (defun get-values (tokens)
@@ -74,73 +98,46 @@
 (defun matches? (tokens expected-types)
   "Returns true if tokens matches expected-types."
   (if (and (equal tokens nil) (equal expected-types nil)) t
-    (and (equal (car (car tokens)) (car expected-types)) (matches? (cdr tokens) (cdr expected-types)))))
+    (and
+      (equal (caar tokens) (car expected-types))
+      (matches? (cdr tokens) (cdr expected-types))
+      )))
 
-(defun parse-line (line)
-  (let* ((parts (split-string line " " t))
-	 (operation (car parts))
-	 (operands (tokenize (cdr parts))))
-    (cond ((string= operation "MOV")
-	   (cond ((matches? operands (list 'cell 'cell))
-		  (setf instruction-list (append instruction-list (list (list 'mov (get-values operands))))))
-		 ((matches? operands (list 'cell 'int))
-		  (setf instruction-list (append instruction-list (list (list 'movi (get-values operands))))))))
-	  ((string= operation "ADD")
-	   (cond ((matches? operands (list 'cell 'cell 'cell))
-		  (setf instruction-list (append instruction-list (list (list 'add (get-values operands))))))
-		 ((matches? operands (list 'cell 'cell 'int))
-		  (setf instruction-list (append instruction-list (list (list 'addi (get-values operands))))))))
-	  ((string= operation "MUL")
-	   (cond ((matches? operands (list 'cell 'cell 'cell))
-		  (setf instruction-list (append instruction-list (list (list 'mul (get-values operands))))))
-		 ((matches? operands (list 'cell 'cell 'int))
-		  (setf instruction-list (append instruction-list (list (list 'muli (get-values operands))))))))
-	  ((string= operation "DIV")
-	   (cond ((matches? operands (list 'cell 'cell 'cell))
-		  (setf instruction-list (append instruction-list (list (list 'div (get-values operands))))))
-		 ((matches? operands (list 'cell 'cell 'int))
-		  (setf instruction-list (append instruction-list (list (list 'divi (get-values operands))))))))
-	  ((string= operation "MOD")
-	   (cond ((matches? operands (list 'cell 'cell 'cell))
-		  (setf instruction-list (append instruction-list (list (list 'mod (get-values operands))))))
-		 ((matches? operands (list 'cell 'cell 'int))
-		  (setf instruction-list (append instruction-list (list (list 'modi (get-values operands))))))))
-	  ((string= operation "BEQZ")
-	   (cond ((matches? operands (list 'cell 'int))
-		  (setf instruction-list (append instruction-list (list (list 'beqz (get-values operands))))))))
-	  ((string= operation "BNEQZ")
-	   (cond ((matches? operands (list 'cell 'int))
-		  (setf instruction-list (append instruction-list (list (list 'bneqz (get-values operands))))))))
-	  ((string= operation "DISPLAY")
-	   (cond ((matches? operands (list 'string))
-		  (setf instruction-list (append instruction-list (list (list 'display (get-values operands)))))))))))
+(defun parse-lines (raw-list instruction-def-list)
+  (cond ((equal raw-list '()) '())
+        (t (let* (
+                  (line (car raw-list))
+                  (parts (split-string line " " t))
+                  (instruction-id (car parts))
+                  (operands (tokenize (cdr parts)))
+                  (function-symbol (get-function instruction-id operands instruction-def-list))
+                  )
 
-(defun execute (instruction)
-  (let ((instruction-symbol (car instruction))
-	(instruction-values (car (cdr instruction))))
-    (cond ((equal instruction-symbol 'mov) (instruction-mov instruction-values))
-	  ((equal instruction-symbol 'movi) (instruction-movi instruction-values))
-	  ((equal instruction-symbol 'add) (instruction-add instruction-values))
-	  ((equal instruction-symbol 'addi) (instruction-addi instruction-values))
-	  ((equal instruction-symbol 'mul) (instruction-mul instruction-values))
-	  ((equal instruction-symbol 'muli) (instruction-muli instruction-values))
-	  ((equal instruction-symbol 'div) (instruction-div instruction-values))
-	  ((equal instruction-symbol 'divi) (instruction-divi instruction-values))
-	  ((equal instruction-symbol 'mod) (instruction-mod instruction-values))
-	  ((equal instruction-symbol 'modi) (instruction-modi instruction-values))
-	  ((equal instruction-symbol 'beqz) (instruction-beqz instruction-values))
-	  ((equal instruction-symbol 'bneqz) (instruction-bneqz instruction-values))
-	  ((equal instruction-symbol 'display) (instruction-display instruction-values)))))
+             (cond ((equal function-symbol nil) (error (concat "Unrecognized instruction: " instruction-id)))
+                   (t (cons (list function-symbol (get-values operands)) (parse-lines (cdr raw-list) instruction-def-list)))
+                   )))))
 
-(defun run ()
-  (dotimes (instruction-pointer (safe-length instruction-list))
-    (message "IP:%d MEM:%s" instruction-pointer memory)
-    (execute (nth instruction-pointer instruction-list))))
+(defun execute (instruction-list memory instruction-pointer)
+ (cond ((< instruction-pointer (length instruction-list))
+  (let* ((instruction (nth instruction-pointer instruction-list))
+        (instruction-function (car instruction))
+        (instruction-values (car (cdr instruction))))
+        (message "IP:%d MEM:%s" instruction-pointer memory)
+        (execute instruction-list memory (funcall instruction-function instruction-values memory instruction-pointer))))
+    (t instruction-pointer)
+  ))
 
 (let ((memory (make-list 16 0))
-      (instruction-list '()))
-  (parse-line "MOV 0 $10")
-  (parse-line "MOV 1 0")
-  (parse-line "ADD 2 0 1")
-  (run)
+      (instruction-list '())
+      (instruction-set (list
+                         (list "MOV" 'instruction-mov (list 'cell 'cell))
+                         (list "MOV" 'instruction-movi (list 'cell 'int))
+                         (list "ADD" 'instruction-add (list 'cell 'cell 'cell))
+                         (list "ADD" 'instruction-addi (list 'cell 'cell 'int))))
+      )
+  (execute (parse-lines (list
+      "MOV 0 $10"
+      "MOV 1 0"
+      "ADD 2 0 1"
+     )instruction-set) memory 0)
   (message "MEM:%s" memory))
