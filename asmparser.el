@@ -1,78 +1,54 @@
 (defun caddr (x)
  "caddr lol" (cadr (cdr x)))
 
+(defun cadddr (x)
+ "cadddr lol" (caddr (cdr x)))
+
 (defun get-function (str-id operands func-list)
   "Finds an instruction function given its identifier string"
   (let* ( (instruction (car func-list))
           (instruction-str (car instruction))
           (instruction-function (cadr instruction))
-          (instruction-pattern (caddr instruction)))
+          (instruction-pattern (caddr instruction))
+          (instruction-param (cadddr instruction)))
     (cond
       ((equal func-list '()) nil)
-      ((and (equal str-id instruction-str) (matches? operands instruction-pattern)) instruction-function)
+      ((and (equal str-id instruction-str) (matches? operands instruction-pattern)) (list instruction-function instruction-param))
       (t (get-function str-id operands (cdr func-list))))))
 
-(defun instruction-mov (operands memory ip)
+
+(defun instruction-mov (param operands memory ip)
   "Moves from memory to memory."
   (setf (nth (car operands) memory) (nth (cadr operands) memory))
   (+ ip 1))
 
-(defun instruction-movi (operands memory ip)
+(defun instruction-movi (param operands memory ip)
   "Move immediate value to memory."
-  (setf (nth (car operands) memory) (cadr operands))
-  (+ ip 1))
+  (let ((op1 (cadr operands)))
+  (setf (nth (car operands) memory) op1)
+  (+ ip 1)))
 
-(defun instruction-add (operands memory ip)
-  "Adds memory to memory, stores in memory."
-  (setf (nth (car operands) memory) (+ (nth (cadr operands) memory) (nth (car (cdr operands)) memory)))
-  (+ ip 1))
+(defun arithmetic-immediate (op operands memory ip)
+ (let ((op1 (nth (cadr operands) memory))
+       (op2 (caddr operands)))
+   (setf (nth (car operands) memory) (funcall op op1 op2))
+   (+ ip 1)))
 
-(defun instruction-addi (operands memory ip)
-  "Adds memory to immediate value, stores in memory."
-  (setf (nth (car operands) memory) (+ (nth (cadr operands) memory) (car (cdr operands))))
-  (+ ip 1))
+(defun arithmetic-memory (op operands memory ip)
+ (setf (nth (car operands) memory) (funcall op (nth (cadr operands) memory) (nth (cadr operands) memory)))
+ (+ ip 1))
 
-(defun instruction-mul (operands memory ip)
-  "Multiplies memory with memory, stores in memory."
-  (setf (nth (car operands) memory) (* (nth (cadr operands) memory) (nth (car (cdr operands)) memory)))
-  (+ ip 1))
-
-(defun instruction-muli (operands memory ip)
-  "Multiples memory with immediate value, stores in memory."
-  (setf (nth (car operands) memory) (* (nth (cadr operands) memory) (nth (car (cdr operands)))))
-  (+ ip 1))
-
-(defun instruction-div (operands memory ip)
-  "Divides memory with memory, stores in memory."
-  (setf (nth (car operands) memory) (/ (nth (cadr operands) memory) (nth (car (cdr operands) memory))))
-  (+ ip 1))
-
-(defun instruction-divi (operands memory ip)
-  "Divides memory with immediate value, stores in memory."
-  (setf (nth (car operands) memory) (/ (nth (cadr operands) memory) (nth (car (cdr operands)))))
-  (+ ip 1))
-
-(defun instruction-mod (operands memory ip)
-  "Stores remainder of two values in memory."
-  (setf (nth (car operands) memory) (% (nth (cadr operands) memory) (nth (car (cdr operands) memory))))
-  (+ ip 1))
-
-(defun instruction-modi (operands memory ip)
-  "Stores remainder of two values in memory."
-  (setf (nth (car operands) memory) (% (nth (cadr operands) memory) (car (cdr operands))))
-  (+ ip 1))
-
-(defun instruction-beqz (operands memory ip)
+(defun instruction-beqz (param operands memory ip)
   "Branches if equal to zero."
   (cond ((= (nth (car operands) memory) 0) (cadr operands))
          (t (+ ip 1))))
 
-(defun instruction-bneqz (operands memory ip)
+(defun instruction-bneqz (param operands memory ip)
   "Branches if not equal to zero."
   (cond ((not (= (nth (car operands) memory) 0)) (cadr operands))
          (t (+ ip 1))))
 
-(defun instruction-display (operands memory ip)
+(defun instruction-display (param operands memory ip)
   "Prints ASCII character."
   (message (car operands)))
 
@@ -110,34 +86,58 @@
                   (parts (split-string line " " t))
                   (instruction-id (car parts))
                   (operands (tokenize (cdr parts)))
-                  (function-symbol (get-function instruction-id operands instruction-def-list))
+                  (function-object (get-function instruction-id operands instruction-def-list))
+                  (function-symbol (car function-object))
+                  (function-param (cadr function-object))
                   )
 
              (cond ((equal function-symbol nil) (error (concat "Unrecognized instruction: " instruction-id)))
-                   (t (cons (list function-symbol (get-values operands)) (parse-lines (cdr raw-list) instruction-def-list)))
+                   (t (cons (list function-symbol (get-values operands) function-param) (parse-lines (cdr raw-list) instruction-def-list)))
                    )))))
 
 (defun execute (instruction-list memory instruction-pointer)
  (cond ((< instruction-pointer (length instruction-list))
   (let* ((instruction (nth instruction-pointer instruction-list))
         (instruction-function (car instruction))
-        (instruction-values (car (cdr instruction))))
-        (message "IP:%d MEM:%s" instruction-pointer memory)
-        (execute instruction-list memory (funcall instruction-function instruction-values memory instruction-pointer))))
+        (instruction-values (cadr instruction))
+        (instruction-param (caddr instruction)))
+        (message "IP:%d (%s) MEM:%s" instruction-pointer (symbol-name instruction-function) memory)
+        (execute instruction-list memory (funcall instruction-function instruction-param instruction-values memory instruction-pointer))))
     (t instruction-pointer)
   ))
+
+(defun define-arithmetic-immediate (str func)
+ (list str 'arithmetic-immediate (list 'cell 'cell 'int) func)
+ )
+
+(defun define-arithmetic-memory (str func)
+ (list str 'arithmetic-memory (list 'cell 'cell 'cell) func)
+ )
 
 (let ((memory (make-list 16 0))
       (instruction-list '())
       (instruction-set (list
-                         (list "MOV" 'instruction-mov (list 'cell 'cell))
-                         (list "MOV" 'instruction-movi (list 'cell 'int))
-                         (list "ADD" 'instruction-add (list 'cell 'cell 'cell))
-                         (list "ADD" 'instruction-addi (list 'cell 'cell 'int))))
+                         (list "MOV" 'instruction-mov (list 'cell 'cell) '())
+                         (list "MOV" 'instruction-movi (list 'cell 'int) '())
+                         (list "BNEQZ" 'instruction-bneqz (list 'cell 'int) '())
+                         (list "BEQZ" 'instrution-beqz (list 'cell 'int) '())
+                         (list "DISPLAY" 'instruction-display (list 'string) '())
+                         (define-arithmetic-memory "ADD" '+)
+                         (define-arithmetic-memory "SUB" '-)
+                         (define-arithmetic-memory "DIV" '/)
+                         (define-arithmetic-memory "MUL" '*)
+                         (define-arithmetic-memory "MOD" '%)
+                         (define-arithmetic-immediate "ADD" '+)
+                         (define-arithmetic-immediate "SUB" '-)
+                         (define-arithmetic-immediate "DIV" '/)
+                         (define-arithmetic-immediate "MUL" '*)
+                         (define-arithmetic-immediate "MOD" '%)
+                       ))
       )
   (execute (parse-lines (list
-      "MOV 0 $10"
-      "MOV 1 0"
-      "ADD 2 0 1"
+      "MOV 0 $5"
+      "SUB 0 0 $1"
+ ;     "DISPLAY !hello"
+      "BNEQZ 0 $1"
      )instruction-set) memory 0)
   (message "MEM:%s" memory))
