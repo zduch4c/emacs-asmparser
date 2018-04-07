@@ -50,7 +50,8 @@
 
 (defun instruction-display (param operands memory ip)
   "Prints ASCII character."
-  (message (car operands)))
+  (message (car operands))
+  (+ ip 1))
 
 (defun tokenize (operands)
   "Tokenizes operands."
@@ -137,7 +138,7 @@
   (execute (parse-lines (list
       "MOV 0 $5"
       "SUB 0 0 $1"
- ;     "DISPLAY !hello"
+      "DISPLAY !hello"
       "BNEQZ 0 $1"
      )instruction-set) memory 0)
   (message "MEM:%s" memory))
