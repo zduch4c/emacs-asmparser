@@ -82,6 +82,7 @@
 
 (defun parse-lines (raw-list instruction-def-list)
   (cond ((equal raw-list '()) '())
+        ((equal (aref (car raw-list) 0) ?\#) (parse-lines (cdr raw-list) instruction-def-list))
         (t (let* (
                   (line (car raw-list))
                   (parts (split-string line " " t))
@@ -139,6 +140,7 @@
       "MOV 0 $5"
       "SUB 0 0 $1"
       "DISPLAY !hello"
+      "# this is a comment that should be ignored"
       "BNEQZ 0 $1"
      )instruction-set) memory 0)
   (message "MEM:%s" memory))
